@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
+#include <unistd.h>
 
 // Scale values into a common range between 0 and 1 
 void normalize(Exchange exchanges[], float norm_price[], float norm_latency[], float norm_volume[]) {
@@ -69,6 +71,69 @@ void maxHeap_calculateScores(Exchange exchanges[]) {
 
     // Max-heap sort [O(n log n)] with initial heapify [O(n)] & subsequent extractions (pop max and heapify) at O(log n)
     heapSort(exchanges, NUM_EXCHANGES);
+}
+
+// Evaluate each exchange concurrently
+void* evaluate_exchange(void* arg) {
+    float norm_price, norm_latency, norm_volume;
+    ThreadArg* threadArg = (ThreadArg*)arg;
+    Exchange* ex = threadArg->ex;
+    printf("Executing Thread %s:\n\n", threadArg->ex->name);
+
+    // Normalize
+    norm_price = 1.0f - (ex->price - threadArg->min_price) / (threadArg->max_price - threadArg->min_price + 1e-6f);
+    norm_latency = 1.0f - (ex->latency - threadArg->min_latency) / (threadArg->max_latency - threadArg->min_latency + 1e-6f);
+    norm_volume = (float)(ex->volume - threadArg->min_volume) / (threadArg->max_volume - threadArg->min_volume + 1e-6f);
+
+    // Calculate score using normalized values
+    ex->score = W_PRICE * norm_price +
+                W_LATENCY * norm_latency +
+                W_VOLUME * norm_volume;
+
+    printf("Thread %s Exiting:\n\n", threadArg->ex->name);
+    pthread_exit(NULL);
+}
+
+
+// Multithreaded evaluation of exchange scores
+void run_multithreaded_scoring(Exchange exchanges[], int count) {
+    float min_price = exchanges[0].price, max_price = exchanges[0].price;
+    float min_latency = exchanges[0].latency, max_latency = exchanges[0].latency;
+    int min_volume = exchanges[0].volume, max_volume = exchanges[0].volume;
+
+    for (int i = 1; i < count; i++) {
+        if (exchanges[i].price < min_price) min_price = exchanges[i].price;
+        if (exchanges[i].price > max_price) max_price = exchanges[i].price;
+    
+        if (exchanges[i].latency < min_latency) min_latency = exchanges[i].latency;
+        if (exchanges[i].latency > max_latency) max_latency = exchanges[i].latency;
+    
+        if (exchanges[i].volume < min_volume) min_volume = exchanges[i].volume;
+        if (exchanges[i].volume > max_volume) max_volume = exchanges[i].volume;
+    }
+
+    pthread_t threads[count];
+    ThreadArg threadArgs[count];
+
+    for (int i = 0; i < count; i++) {
+        threadArgs[i].ex = &exchanges[i];
+        threadArgs[i].min_price = min_price;
+        threadArgs[i].max_price = max_price;
+        threadArgs[i].min_latency = min_latency;
+        threadArgs[i].max_latency = max_latency;
+        threadArgs[i].min_volume = min_volume;
+        threadArgs[i].max_volume = max_volume;
+
+        pthread_create(&threads[i], NULL, evaluate_exchange, &threadArgs[i]);
+    }
+
+    for (int i = 0; i < count; i++) {
+        printf("Merging Thread %d:\n\n", i);
+        pthread_join(threads[i], NULL);
+    }
+
+    // qsort(exchanges, count, sizeof(Exchange), compare);
+    heapSort(exchanges, count);
 }
 
 // Allocate order to the best exchange(s)

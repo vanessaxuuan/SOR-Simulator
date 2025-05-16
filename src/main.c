@@ -21,8 +21,9 @@ int main() {
     getrusage(RUSAGE_SELF, &usage_start); // Initial resource usage
 
     // Main logic
-    // quickSort_calculateScores(exchanges);
-    maxHeap_calculateScores(exchanges);
+    // quickSort_calculateScores(exchanges); 
+    //maxHeap_calculateScores(exchanges);
+    run_multithreaded_scoring(exchanges, NUM_EXCHANGES);
     allocateOrder(exchanges, order_qty);
 
     // Get Elapsed Time
