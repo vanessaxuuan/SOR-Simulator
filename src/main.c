@@ -4,14 +4,17 @@
 #include <stdio.h>
 #include <sys/resource.h>
 
-int main() {
-    Exchange exchanges[NUM_EXCHANGES] = {
-        {"SGX", 101.5, 5.2, 700, 0.0},
-        {"HKEX", 100.2, 6.5, 800, 0.0},
-        {"TSE", 99.9, 8.0, 400, 0.0}
-    };
+// Function declarations from exchange-simulator.c
+void get_user_input(char *symbol, int *quantity);
+void fill_exchange_data(Exchange exchanges[], const char* symbol);
 
-    int order_qty = 1500;
+int main() {
+    char symbol[10];
+    int order_qty;
+    Exchange exchanges[NUM_EXCHANGES];
+
+    // Get user input
+    get_user_input(symbol, &order_qty);
 
     // Initial measurements
     struct timespec start, end; 
@@ -20,9 +23,10 @@ int main() {
     clock_gettime(CLOCK_MONOTONIC, &start); // Initial time
     getrusage(RUSAGE_SELF, &usage_start); // Initial resource usage
 
+    // Fill exchange data with live information
+    fill_exchange_data(exchanges, symbol);
+
     // Main logic
-    // quickSort_calculateScores(exchanges); 
-    //maxHeap_calculateScores(exchanges);
     run_multithreaded_scoring(exchanges, NUM_EXCHANGES);
     allocateOrder(exchanges, order_qty);
 

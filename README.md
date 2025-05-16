@@ -29,15 +29,15 @@ The goal is to:
 - [x] Split orders across exchanges if required
 - [x] Console-based log output of routing decisions
 - [x] Modular C codebase with headers and implementation separation
+- [x] Perform parallel calculations with multithreading
+- [x] Integrate real-time market feed simulation (yahoo finance)
 
 ---
 
 ### 🧩 Future Enhancements (Planned)
 - [ ] Linux-compatible build system
-- [ ] Integrate real-time market feed simulation (e.g., price fluctuations)
 - [ ] Add unit tests and input validation
 - [ ] Simulate trading session over a timer or tick-based loop
-- [ ] Multi-threaded routing simulation for latency modeling
 - [ ] Add GUI or web dashboard to visualize routing results
 - [ ] Enable CSV logging of execution history
 
@@ -66,7 +66,6 @@ Inside the project directory, simply run:
 make
 ```
 
-
 ### 3. ✅ Run the SOR Simulator
 
 Simply run:
@@ -75,6 +74,14 @@ Simply run:
 ./bin/sor_simulator
 ```
 
+### 4. ✅ Key in input
 
+Enter the stock ticker symbol (e.g., AAPL, GOOGL) and the desired quantity of shares to purchase!
 
+### 5. ✅ Expected Output
 
+The simulator will display:
+- Exchange data and rankings based on price, volume, and latency
+- Order allocation across exchanges
+- Execution status and remaining quantity (if any)
+- Performance metrics (execution time and resource usage)

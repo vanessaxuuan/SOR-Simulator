@@ -75,10 +75,10 @@ void maxHeap_calculateScores(Exchange exchanges[]) {
 
 // Evaluate each exchange concurrently
 void* evaluate_exchange(void* arg) {
-    float norm_price, norm_latency, norm_volume;
     ThreadArg* threadArg = (ThreadArg*)arg;
     Exchange* ex = threadArg->ex;
-    printf("Executing Thread %s:\n\n", threadArg->ex->name);
+    float norm_price, norm_latency, norm_volume;
+    printf("\nExecuting Thread %s\n", ex->name);
 
     // Normalize
     norm_price = 1.0f - (ex->price - threadArg->min_price) / (threadArg->max_price - threadArg->min_price + 1e-6f);
@@ -90,13 +90,12 @@ void* evaluate_exchange(void* arg) {
                 W_LATENCY * norm_latency +
                 W_VOLUME * norm_volume;
 
-    printf("Thread %s Exiting:\n\n", threadArg->ex->name);
-    pthread_exit(NULL);
+    return NULL;
 }
-
 
 // Multithreaded evaluation of exchange scores
 void run_multithreaded_scoring(Exchange exchanges[], int count) {
+    // Calculate min/max values first
     float min_price = exchanges[0].price, max_price = exchanges[0].price;
     float min_latency = exchanges[0].latency, max_latency = exchanges[0].latency;
     int min_volume = exchanges[0].volume, max_volume = exchanges[0].volume;
@@ -112,9 +111,21 @@ void run_multithreaded_scoring(Exchange exchanges[], int count) {
         if (exchanges[i].volume > max_volume) max_volume = exchanges[i].volume;
     }
 
-    pthread_t threads[count];
-    ThreadArg threadArgs[count];
+    // Allocate thread arguments on heap to ensure they live throughout thread execution
+    ThreadArg* threadArgs = (ThreadArg*)malloc(count * sizeof(ThreadArg));
+    if (!threadArgs) {
+        fprintf(stderr, "Failed to allocate memory for thread arguments\n");
+        return;
+    }
 
+    pthread_t* threads = (pthread_t*)malloc(count * sizeof(pthread_t));
+    if (!threads) {
+        fprintf(stderr, "Failed to allocate memory for threads\n");
+        free(threadArgs);
+        return;
+    }
+
+    // Create threads
     for (int i = 0; i < count; i++) {
         threadArgs[i].ex = &exchanges[i];
         threadArgs[i].min_price = min_price;
@@ -124,26 +135,44 @@ void run_multithreaded_scoring(Exchange exchanges[], int count) {
         threadArgs[i].min_volume = min_volume;
         threadArgs[i].max_volume = max_volume;
 
-        pthread_create(&threads[i], NULL, evaluate_exchange, &threadArgs[i]);
+        int ret = pthread_create(&threads[i], NULL, evaluate_exchange, &threadArgs[i]);
+        if (ret != 0) {
+            fprintf(stderr, "Failed to create thread %d: %s\n", i, strerror(ret));
+            // Clean up already created threads
+            for (int j = 0; j < i; j++) {
+                pthread_join(threads[j], NULL);
+            }
+            free(threadArgs);
+            free(threads);
+            return;
+        }
     }
 
+    // Wait for all threads to complete
     for (int i = 0; i < count; i++) {
-        printf("Merging Thread %d:\n\n", i);
-        pthread_join(threads[i], NULL);
+        int ret = pthread_join(threads[i], NULL);
+        printf("\nThread %d Merging\n", i);
+        if (ret != 0) {
+            fprintf(stderr, "Failed to join thread %d: %s\n", i, strerror(ret));
+        }
     }
 
-    // qsort(exchanges, count, sizeof(Exchange), compare);
+    // Clean up
+    free(threadArgs);
+    free(threads);
+
+    // Sort the exchanges by score
     heapSort(exchanges, count);
 }
 
 // Allocate order to the best exchange(s)
 void allocateOrder(Exchange exchanges[], int order_quantity) {
-    printf("Allocating %d shares based on ranking:\n\n", order_quantity);
+    printf("\nAllocating %d shares based on ranking:\n\n", order_quantity);
 
     for (int i = 0; i < NUM_EXCHANGES && order_quantity > 0; i++) {
         int allocation = exchanges[i].volume < order_quantity ? exchanges[i].volume : order_quantity;
         if (allocation > 0) {
-            printf("✅ %s: Allocated %d shares (Score: %.2f)\n", exchanges[i].name, allocation, exchanges[i].score);
+            printf("\n✅ %s: Allocated %d shares (Score: %.2f)\n", exchanges[i].name, allocation, exchanges[i].score);
             order_quantity -= allocation;
         }
     }
